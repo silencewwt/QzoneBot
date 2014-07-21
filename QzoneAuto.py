@@ -92,11 +92,10 @@ class AutoDoLike(object):
                 print(e.reason)
                 sys.exit(-1)
             resp_html = zlib.decompress(resp_html, 16 + zlib.MAX_WBITS).decode('utf8')
-            page_data = {}
-            try:
-                page_data = eval(resp_html[10:-2])
-            except NameError as e:
-                print(e.__cause__)
+            with open('%s.htm' % self.pages, 'w', encoding='utf8') as htm:
+                htm.write(resp_html)
+            null = None
+            page_data = eval(resp_html[10:-2])
             target_list = []
             for msg in page_data['msglist']:
                 target_list.append(msg['tid'])
@@ -221,23 +220,39 @@ class AutoDoLike(object):
                 self.imitate_post(tid, content_list)
 
     def imitate_post(self, tid, comment_list):
-        cmt_list = []
-        print(comment_list)
+        sml_list = []
         for i in range(len(comment_list)):
-            for j in range(len(comment_list)):
-                if i != j:
-                    if comment_list[i] == comment_list[j]:
-                        # self.comment_post([tid], comment_list[i])
-                        return
+            sml_list.append({'index': i, 'similar': 0})
+            for j in range(i):
+                if comment_list[i] == comment_list[j]:
+                    sml_list[i]['similar'] += 1
+        sml_list.sort(reverse=True, key=lambda x: x['similar'])
+        if sml_list[0]['similar'] > 0:
+            self.comment_post(tid, comment_list[sml_list[0]['index']])
+            print(comment_list[sml_list[0]['index']])
+            return
+
+        cmt_list = []
+        index = 0
         for comment in comment_list:
             comment = re.sub(r'\[em\]e\w+\[\\/em\]', '', comment)
             comment = re.sub(r'@\{uin:\d+,nick:.+?,who:\d+\}', '', comment)
             m = re.findall('(\w+)', comment)
             if m:
-                cmt_list.append(''.join(m))
-        print(cmt_list)
-        for comment in cmt_list:
-            pass
+                cmt_list.append({'index': index, 'content': ''.join(m)})
+            index += 1
+        sml_list = []
+        for i in range(len(cmt_list)):
+            sml_list.append({'index': cmt_list[i]['index'], 'similar': 0})
+            for j in range(i):
+                if cmt_list[i]['content'] == cmt_list[j]['content']:
+                    sml_list[i]['similar'] += 1
+        sml_list.sort(reverse=True, key=lambda x: x['similar'])
+        if sml_list[0]['similar'] > 0:
+            self.comment_post(tid, comment_list[sml_list[0]['index']])
+            print(comment_list[sml_list[0]['index']])
+            return
+        print('cant imitate!')
 
     def work_done(self):
         print('totally %s pieces of messages done!' % self.like_num)
@@ -248,6 +263,6 @@ class AutoDoLike(object):
         self.get_msg_id()
 
 
-a = AutoDoLike('', '', '……')
+a = AutoDoLike('385204916', '155319144', 'bug终于解决了……')
 if __name__ == '__main__':
     a.main()
