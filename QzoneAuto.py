@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*-coding:utf-8-*-
 
 import os
@@ -6,6 +5,7 @@ import re
 import sys
 import time
 import zlib
+import hashlib
 import sqlite3
 import urllib.parse
 import urllib.request
@@ -16,12 +16,15 @@ import http.cookiejar
 import win32crypt
 
 
-class AutoDoLike(object):
-    def __init__(self, self_id, target_id, comment='Python大法好，用过都说屌!'):
+class QzoneAuto(object):
+    def __init__(self, self_id, password, target_id, vote, imitate, comment):
         if self_id == '' or target_id == '':
             raise Exception('please input correct id!')
         self.self_id = self_id
         self.target_id = target_id
+        self.password = password
+        self.vote = vote
+        self.imitate = imitate
         self.comment = comment
         self.like_done = False
         self.comment_done = False
@@ -80,7 +83,9 @@ class AutoDoLike(object):
                    'Referer': 'http://cnc.qzs.qq.com/qzone/app/mood_v6/html/index.html',
                    'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) '
                                  'Chrome/36.0.1985.125 Safari/537.36}'}
-        while self.comment_done is False:
+        reg = r'\[\\/em\]'
+        reg = re.compile(reg)
+        while True:
             url = self.url.format(self.target_id, self.target_id, self.pages*20, self.prove)
             req = urllib.request.Request(url, headers=headers)
             try:
@@ -92,10 +97,14 @@ class AutoDoLike(object):
                 print(e.reason)
                 sys.exit(-1)
             resp_html = zlib.decompress(resp_html, 16 + zlib.MAX_WBITS).decode('utf8')
+            resp_html = re.sub(reg, '[/em]', resp_html)
             with open('%s.htm' % self.pages, 'w', encoding='utf8') as htm:
                 htm.write(resp_html)
             null = None
             page_data = eval(resp_html[10:-2])
+            if 'msglist' not in page_data:
+                self.work_done()
+                return
             target_list = []
             for msg in page_data['msglist']:
                 target_list.append(msg['tid'])
@@ -104,20 +113,23 @@ class AutoDoLike(object):
                 if tid not in msg_list:
                     self.msg_list.append(tid)
                     msg_list.append(tid)
-            for msg in page_data['msglist']:
-                if msg['cmtnum'] > 1:
-                    comment_list = []
-                    for cmt in msg['commentlist']:
-                        comment_list.append(cmt['content'])
-                    self.imitate_post(msg['tid'], comment_list)
-            # self.like_post(msg_list)
-            # self.comment_post(msg_list)
+
+            if self.imitate:
+                for msg in page_data['msglist']:
+                    if msg['cmtnum'] > 1:
+                        comment_list = []
+                        for cmt in msg['commentlist']:
+                            comment_list.append(cmt['content'])
+                        self.imitate_post(msg['tid'], comment_list)
+            if self.vote:
+                self.vote_post(msg_list)
+            if self.comment:
+                self.comment_post(msg_list, self.comment)
             # self.get_more_comment(msg_list)
             self.pages += 1
             print('%s pages done!' % self.pages)
-        self.work_done()
 
-    def like_post(self, target_list):
+    def vote_post(self, target_list):
         headers = {'Host': 'w.cnc.qzone.qq.com', 'Connection': 'keep-alive', 'Content-Length': '268',
                    'Cache-Control': 'max-age=0', 'Origin': 'http://user.qzone.qq.com',
                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -172,7 +184,7 @@ class AutoDoLike(object):
             data = urllib.parse.urlencode(values).encode('utf8')
             req = urllib.request.Request(comment_url, data=data, headers=headers)
             try:
-                urllib.request.urlopen(req)
+                urllib.request.urlopen(req).read()
             except urllib.error.HTTPError as e:
                 print(e.code, e.reason)
             except urllib.error.URLError as e:
@@ -228,14 +240,13 @@ class AutoDoLike(object):
                     sml_list[i]['similar'] += 1
         sml_list.sort(reverse=True, key=lambda x: x['similar'])
         if sml_list[0]['similar'] > 0:
-            self.comment_post(tid, comment_list[sml_list[0]['index']])
-            print(comment_list[sml_list[0]['index']])
+            self.comment_post([tid], comment_list[sml_list[0]['index']])
             return
 
         cmt_list = []
         index = 0
         for comment in comment_list:
-            comment = re.sub(r'\[em\]e\w+\[\\/em\]', '', comment)
+            comment = re.sub(r'\[em\]e\w+\[/em\]', '', comment)
             comment = re.sub(r'@\{uin:\d+,nick:.+?,who:\d+\}', '', comment)
             m = re.findall('(\w+)', comment)
             if m:
@@ -249,8 +260,7 @@ class AutoDoLike(object):
                     sml_list[i]['similar'] += 1
         sml_list.sort(reverse=True, key=lambda x: x['similar'])
         if sml_list[0]['similar'] > 0:
-            self.comment_post(tid, comment_list[sml_list[0]['index']])
-            print(comment_list[sml_list[0]['index']])
+            self.comment_post([tid], comment_list[sml_list[0]['index']])
             return
         print('cant imitate!')
 
@@ -259,10 +269,12 @@ class AutoDoLike(object):
         print('totally %s pages of messages!' % self.pages)
 
     def main(self):
+        self.login()
         self.get_cookies()
         self.get_msg_id()
 
 
-a = AutoDoLike('385204916', '155319144', 'bug终于解决了……')
 if __name__ == '__main__':
+    a = QzoneAuto(self_id='', password='', target_id='', vote=False, imitate=False,
+                  comment='!')
     a.main()
