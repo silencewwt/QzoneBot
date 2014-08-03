@@ -2,7 +2,9 @@
 # -*-coding:utf-8-*-
 
 import tkinter as tk
+import tkinter.messagebox as msg_box
 import QzoneAuto
+import os
 
 
 class Client(object):
@@ -18,6 +20,9 @@ class Client(object):
         self.ENTRY_WIDTH = 20
         self.LABEL_VERTICAL_GAP = 40
         self.CHECK_TOP = 150
+
+        self.qzone = None
+        self.verify_code =''
 
         self.top = tk.Tk()
         self.top.config(bg='gray')
@@ -78,6 +83,7 @@ class Client(object):
         self.button_start.place(x=90, y=310)
 
         self.top.mainloop()
+        # self.entry_verify_code()
 
     def comment_callback(self):
         if not self.check_comment_var.get() % 2:
@@ -86,12 +92,27 @@ class Client(object):
             self.entry_comment.config(state=tk.NORMAL)
 
     def start(self):
-        qq_num = self.entry_qq.get()
+        qq_num = self.entry_qq.get().strip()
         password = self.entry_psw.get()
-        target_num = self.entry_target.get()
+        target_num = self.entry_target.get().strip()
         vote = False
         imitate = False
         comment = ''
+        if not qq_num:
+            msg_box.showerror('你娃出错了！', '请输入QQ号码！')
+            return
+        if not qq_num.isnumeric():
+            msg_box.showerror('你娃出错了！', '请输入正确的QQ号码！')
+            return
+        if not password:
+            msg_box.showerror('你娃出错了！', '请输入密码！')
+            return
+        if not target_num:
+            msg_box.showerror('你娃出错了！', '请输入对方的QQ号码！')
+            return
+        if not target_num.isnumeric():
+            msg_box.showerror('你娃出错了！', '请输入正确的QQ号码！')
+            return
 
         if self.check_vote_var.get() % 2:
             vote = True
@@ -99,9 +120,51 @@ class Client(object):
             imitate = True
         if self.check_comment_var.get() % 2:
             comment = self.entry_comment.get()
+            if not comment:
+                msg_box.showerror('你娃出错了！', '请输入自动评论的内容！')
+                return
+        if not vote and not imitate and not comment:
+            msg_box.showerror('你娃出错了！', '请至少选择一项！')
+            return
 
-        qzone_auto = QzoneAuto.QzoneAuto(qq_num, password, target_num, vote, imitate, comment)
-        qzone_auto.main()
+        self.qzone = QzoneAuto.QzoneAuto(self, qq_num, password, target_num, vote, imitate, comment)
+        self.qzone.start()
+        self.qzone.join()
+
+    def error(self, msg):
+        msg_box.showerror('你娃出错了！', msg)
+
+    def verify_submit(self, code):
+        self.verify_code = code
+        self.qzone.cond.notify()
+
+    def entry_verify_code(self):
+        WIDTH = 250
+        HEIGHT = 150
+        GEOMETRY_SIZE = str(WIDTH) + 'x' + str(HEIGHT)
+        ENTRY_WIDTH = 15
+        ENTRY_X = 30
+        ENTRY_Y = 40
+
+        box = tk.Tk()
+        box.title('请输入验证码')
+        box.geometry(GEOMETRY_SIZE)
+        box.config(bg='gray')
+
+        entry = tk.Entry(box, width=ENTRY_WIDTH)
+        entry.pack()
+        entry.place(x=ENTRY_X, y=ENTRY_Y)
+
+        button_reopen = tk.Button(box, text='打开验证码', width=12, command=lambda: os.popen('verifycode.jpg'))
+        button_reopen.pack()
+        button_reopen.place(x=150, y=38)
+
+        button_submit = tk.Button(box, text='确定', width=8,
+                                  command=lambda: [self.verify_submit(entry.get()), box.destroy()])
+        button_submit.pack()
+        button_submit.place(x=95, y=100)
+
+        box.mainloop()
 
 
 def main():
