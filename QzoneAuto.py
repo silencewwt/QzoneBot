@@ -24,7 +24,6 @@ class QzoneAuto(threading.Thread):
         self.self_id = self_id
         self.target_id = target_id
         self.password = password
-        self.cond = threading.Condition()
         self.verify_code = ''
         self.vote = vote
         self.imitate = imitate
@@ -61,20 +60,19 @@ class QzoneAuto(threading.Thread):
             for i in range(len(hex_str)//2):
                 str_list.append(chr(int(hex_str[2*i:2*i+2], 16)))
             return ''.join(str_list)
-        login_sig = ''
         sig_url = 'http://ui.ptlogin2.qq.com/cgi-bin/login?hide_title_bar=1&low_login=0&qlogin_auto_login=1&' \
                   'no_verifyimg=1&link_target=blank&appid=549000912&style=12&target=self&s_url=http%3A//qzs.qq.com/' \
                   'qzone/v5/loginsucc.html?para=reload&pt_qr_app=%CA%D6%BB%FAQQ%BF%D5%BC%E4&pt_qr_link=http%3A//z.' \
                   'qzone.com/download.html&self_regurl=http%3A//qzs.qq.com/qzone/v6/reg/index.html&pt_qr_help_link=' \
                   'http%3A//z.qzone.com/download.html'
-        headers = {'Host': 'ui.ptlogin2.qq.com',
-                   'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) '
-                                 'Chrome/36.0.1985.125 Safari/537.36',
-                   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                   'Accept-Language': 'zh-cn,zh;q=0.8,en-us;q=0.5,en;q=0.3', 'Accept-Encoding': 'gzip, deflate',
-                   'Referer': 'http://user.qzone.qq.com/%s/main' % self.target_id, 'Connection': 'keep-alive',
-                   'If-Modified-Since': 'Mon, 28 Jul 2014 01:30:00 GMT'}
-        req = urllib.request.Request(sig_url, headers=headers)
+        sig_headers = {'Host': 'ui.ptlogin2.qq.com',
+                       'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) '
+                                     'Chrome/36.0.1985.125 Safari/537.36',
+                       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                       'Accept-Language': 'zh-cn,zh;q=0.8,en-us;q=0.5,en;q=0.3', 'Accept-Encoding': 'gzip, deflate',
+                       'Referer': 'http://user.qzone.qq.com/%s/main' % self.target_id, 'Connection': 'keep-alive',
+                       'If-Modified-Since': 'Mon, 28 Jul 2014 01:30:00 GMT'}
+        req = urllib.request.Request(sig_url, headers=sig_headers)
         try:
             resp_html = urllib.request.urlopen(req).read()
         except urllib.error.HTTPError as e:
@@ -98,15 +96,12 @@ class QzoneAuto(threading.Thread):
                                        'Chrome/36.0.1985.125 Safari/537.36',
                          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                          'Accept-Language': 'zh-cn,zh;q=0.8,en-us;q=0.5,en;q=0.3', 'Accept-Encoding': 'gzip, deflate',
-                         'Referer': 'http://user.qzone.qq.com/%s/main' % self.target_id, 'Connection': 'keep-alive'}
-        cookie_list = []
-        for cookie in self.cookie_jar:
-            cookie_list.append('%s=%s; ' % (cookie.name, cookie.value))
-        cookie_str = ''.join(cookie_list)
-        check_headers['Cookie'] = cookie_str
+                         'Referer': 'http://user.qzone.qq.com/%s/main' % self.target_id, 'Connection': 'keep-alive',
+                         'Cookie': self.get_cookie_str()}
         req = urllib.request.Request(check_url, headers=check_headers)
         try:
-            resp_html = urllib.request.urlopen(req).read().decode('utf8')
+            resp_html = urllib.request.urlopen(req)
+            print(resp_html.info())
         except urllib.error.HTTPError as e:
             print(e.code, e.reason)
             return
@@ -115,69 +110,64 @@ class QzoneAuto(threading.Thread):
             return
         if not resp_html:
             return
-        check_list = re.findall("'(.*?)'", resp_html)
+        check_list = re.findall("'(.*?)'", resp_html.read().decode('utf8'))
         uin = re.sub('\\\\x', '', check_list[2])
         uin = hexchar2bin(uin).encode('iso-8859-1')
         str1 = hexchar2bin(md5(self.password.encode('iso-8859-1')).hexdigest()).encode('iso-8859-1')
         str2 = md5(str1 + uin).hexdigest().upper().encode('iso-8859-1')
-        if True:
+        if check_list[0] == '1':
             verify_code_url = 'http://captcha.qq.com/getimage?uin={}&aid=549000912&cap_cd={}&0.7367948200565873'
             verify_code_url = verify_code_url.format(self.self_id, check_list[1])
-            cookie_list = []
-            verify_code_headers = {'Host': 'captcha.qq.com', 'Connection': 'keep-alive',
-                                   'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like '
-                                                 'Gecko) Chrome/36.0.1985.125 Safari/537.36',
-                                   'Accept': 'image/png,image/*;q=0.8,*/*;q=0.5', 'Accept-Encoding': 'gzip, deflate',
-                                   'Accept-Language': 'zh-cn,zh;q=0.8,en-us;q=0.5,en;q=0.3',
-                                   'Referer': 'http://ui.ptlogin2.qq.com/cgi-bin/login?hide_title_bar=1&low_login=0&'
-                                              'qlogin_auto_login=1&no_verifyimg=1&link_target=blank&appid=549000912&'
-                                              'style=12&target=self&s_url=http%3A//qzs.qq.com/qzone/v5/loginsucc.html?'
-                                              'para=reload&pt_qr_app=%CA%D6%BB%FAQQ%BF%D5%BC%E4&pt_qr_link=http%3A//z.'
-                                              'qzone.com/download.html&self_regurl=http%3A//qzs.qq.com/qzone/v6/reg/'
-                                              'index.html&pt_qr_help_link=http%3A//z.qzone.com/download.html'}
-            for cookie in self.cookie_jar:
-                cookie_list.append('%s=%s; ' % (cookie.name, cookie.value))
-            cookie_str = ''.join(cookie_list)
-            verify_code_headers['Cookie'] = cookie_str
-            # req = urllib.request.Request(verify_code_url, headers=verify_code_headers)
-            # resp_html = urllib.request.urlopen(req).read()
             urllib.request.urlretrieve(verify_code_url, 'verifycode.jpg')
             self.client.entry_verify_code()
-
-            self.cond.acquire()
-            self.cond.wait()
             self.get_verify_code()
-            self.cond.release()
-            print(self.verify_code)
-
-            psw_encode = md5(str2 + self.verify_code).hexdigest().upper()
-        login_url = 'http://ptlogin2.qq.com/login?u={}&verifycode={}&pt_vcode_v1=0&pt_verifysession_v1=dabe22d7b2099' \
-                    'ab14e9d7a658c604a6c5f3904f91b3c3ea033b5bb63965e37befce36a0943b7ad0e15a7698fed250f91&p={}&' \
-                    'pt_rsa=0&u1=http%3A%2F%2Fqzs.qq.com%2Fqzone%2Fv5%2Floginsucc.html%3Fpara%3Dizone&ptredirect=0&' \
-                    'h=1&t=1&g=1&from_ui=1&ptlang=2052&action=2-8-1407072058849&js_ver=10087&js_type=1&login_sig={}&' \
-                    'pt_uistyle=32&aid=549000912&daid=5&pt_qzone_sig=1&'
-        login_url = login_url.format(self.self_id, self.verify_code, psw_encode, login_sig)
-        login_headers = {'Host': 'ptlogin2.qq.com', 'Connection': 'keep-alive', 'Accept': '*/*',
+        else:
+            self.verify_code = str(check_list[1]).upper().encode('iso-8859-1')
+            print(check_list[1])
+        print(self.verify_code)
+        psw_encode = md5(str2 + self.verify_code).hexdigest().upper()
+        print(psw_encode)
+        if check_list[0] == '1':
+            login_url = 'http://ptlogin2.qq.com/login?u={}&verifycode={}&pt_vcode_v1=0&pt_verifysession_v1={}&p={}&' \
+                        'pt_rsa=0&u1=http%3A%2F%2Fqzs.qq.com%2Fqzone%2Fv5%2Floginsucc.html%3Fpara%3Dizone&ptredirect=' \
+                        '0&h=1&t=1&g=1&from_ui=1&ptlang=2052&action=5-40-1407129909767&js_ver=10087&js_type=1&' \
+                        'login_sig={}&pt_uistyle=12&aid=549000912&daid=5&pt_qzone_sig=1&'
+            verify_session = self.get_cookie('verifysession')
+            login_url = login_url.format(self.self_id, self.verify_code, verify_session, psw_encode, login_sig)
+        else:
+            login_url = 'http://ptlogin2.qq.com/login?u={}&p={}&verifycode={}&aid=549000912&u1=http%3A%2F%2Fqzs.qq.' \
+                        'com%2Fqzone%2Fv5%2Floginsucc.html%3Fpara%3Dreload&h=1&ptredirect=0&ptlang=2052&from_ui=1&' \
+                        'dumy=&low_login_enable=0&regmaster=&fp=loginerroralert&action=4-23-1407140031175&mibao_css=&' \
+                        't=2&g=1&js_ver=10087&js_type=1&login_sig={}&pt_uistyle=12&pt_rsa=0&pt_3rd_aid='
+            login_url = login_url.format(self.self_id, psw_encode, self.verify_code, login_sig)
+        login_headers = {'Accept': '*/*', 'Accept-Encoding': 'gzip,deflate,sdch', 'Accept-Language': 'zh-CN,zh;q=0.8',
+                         'Connection': 'keep-alive', 'Host': 'ptlogin2.qq.com',
+                         'Referer': 'http://ui.ptlogin2.qq.com/cgi-bin/login?hide_title_bar=1&low_login=0&'
+                                    'qlogin_auto_login=1&no_verifyimg=1&link_target=blank&appid=549000912&style=12&'
+                                    'target=self&s_url=http%3A//qzs.qq.com/qzone/v5/loginsucc.html?para=reload&'
+                                    'pt_qr_app=%CA%D6%BB%FAQQ%BF%D5%BC%E4&pt_qr_link=http%3A//z.qzone.com/download.'
+                                    'html&self_regurl=http%3A//qzs.qq.com/qzone/v6/reg/index.html&pt_qr_help_link='
+                                    'http%3A//z.qzone.com/download.html',
                          'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) '
-                                       'Chrome/36.0.1985.125 Safari/537.36',
-                         'Referer': 'http://xui.ptlogin2.qq.com/cgi-bin/xlogin?proxy_url=http%3A//qzs.qq.com/qzone/'
-                                    'v6/portal/proxy.html&daid=5&pt_qzone_sig=1&hide_title_bar=1&low_login=0&'
-                                    'qlogin_auto_login=1&no_verifyimg=1&link_target=blank&appid=549000912&style=22&'
-                                    'target=self&s_url=http%3A//qzs.qq.com/qzone/v5/loginsucc.html?para=izone&'
-                                    'pt_qr_app=%E6%89%8B%E6%9C%BAQQ%E7%A9%BA%E9%97%B4&pt_qr_link=http%3A//z.qzone.com/'
-                                    'download.html&self_regurl=http%3A//qzs.qq.com/qzone/v6/reg/index.html&'
-                                    'pt_qr_help_link=http%3A//z.qzone.com/download.html',
-                         'Accept-Encoding': 'gzip,deflate,sdch', 'Accept-Language': 'zh-CN,zh;q=0.8'}
-        login_headers['Cookie'] = cookie_str
-        print('asdf')
+                                       'Chrome/36.0.1985.125 Safari/537.36', 'Cookie': self.get_cookie_str()}
         req = urllib.request.Request(login_url, headers=login_headers)
-        resp_html = urllib.request.urlopen(req).read()
-        resp_html = zlib.decompress(resp_html, 16 + zlib.MAX_WBITS).decode('utf8')
-        with open('123.htm', 'w', encoding='utf8') as html:
-            html.write(resp_html)
+        resp_html = urllib.request.urlopen(req)
+        print(resp_html.info())
+        print(resp_html.read().decode('utf8'))
 
     def get_verify_code(self):
         self.verify_code = self.client.verify_code.upper().encode('iso-8859-1')
+
+    def get_cookie_str(self):
+        cookie_list = []
+        for cookie in self.cookie_jar:
+            cookie_list.append('%s=%s; ' % (cookie.name, cookie.value))
+        return ''.join(cookie_list)
+
+    def get_cookie(self, name):
+        for cookie in self.cookie_jar:
+            if cookie.name == name:
+                return cookie.value
 
     def get_cookies(self):
         if not os.path.exists(self.cookie_file_path):
