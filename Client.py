@@ -83,7 +83,6 @@ class Client(object):
         self.button_start.place(x=90, y=310)
 
         self.top.mainloop()
-        # self.entry_verify_code()
 
     def comment_callback(self):
         if not self.check_comment_var.get() % 2:
@@ -99,40 +98,35 @@ class Client(object):
         imitate = False
         comment = ''
         if not qq_num:
-            msg_box.showerror('你娃出错了！', '请输入QQ号码！')
+            self.error('请输入QQ号码！')
             return
         if not qq_num.isnumeric():
-            msg_box.showerror('你娃出错了！', '请输入正确的QQ号码！')
+            self.error('请输入正确的QQ号码！')
             return
         if not password:
-            msg_box.showerror('你娃出错了！', '请输入密码！')
+            self.error('请输入密码！')
             return
         if not target_num:
-            msg_box.showerror('你娃出错了！', '请输入对方的QQ号码！')
+            self.error('请输入对方的QQ号码！')
             return
         if not target_num.isnumeric():
-            msg_box.showerror('你娃出错了！', '请输入正确的QQ号码！')
+            self.error('请输入正确的QQ号码！')
             return
-
         if self.check_vote_var.get() % 2:
             vote = True
         if self.check_imitate_var.get() % 2:
             imitate = True
         if self.check_comment_var.get() % 2:
-            comment = self.entry_comment.get()
+            comment = self.entry_comment.get().strip()
             if not comment:
-                msg_box.showerror('你娃出错了！', '请输入自动评论的内容！')
+                self.error('请输入自动评论的内容！')
                 return
         if not vote and not imitate and not comment:
-            msg_box.showerror('你娃出错了！', '请至少选择一项！')
+            self.error('请至少选择一项！')
             return
-
         self.qzone = QzoneAuto.QzoneAuto(self, qq_num, password, target_num, vote, imitate, comment)
         self.qzone.start()
         self.qzone.join()
-
-    def error(self, msg):
-        msg_box.showerror('你娃出错了！', msg)
 
     def verify_submit(self, code):
         self.verify_code = code
@@ -164,6 +158,9 @@ class Client(object):
         button_submit.place(x=95, y=100)
 
         box.mainloop()
+
+    def error(self, msg):
+        msg_box.showerror('你娃出错了！', msg)
 
 
 def main():
